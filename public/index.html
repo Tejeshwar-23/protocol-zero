@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SYSTEM ACCESS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Auth Screen (Primary) -->
+        <div id="auth-container">
+            <div class="title">SYSTEM LOGIN <span class="cursor-blink"></span></div>
+            <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" autocomplete="off">
+            </div>
+            <div id="message"></div>
+            <div class="actions">
+                <button id="login-btn">Login</button>
+                <button id="signup-btn">Create Account</button>
+            </div>
+        </div>
+
+        <!-- Lobby (Redesign based on Reference) -->
+        <div id="lobby-container" style="display: none;">
+            <div id="lobby-background"></div>
+
+            <!-- Top Taskbar (Authority Ref) -->
+            <header id="lobby-taskbar">
+                <div class="taskbar-wrap">
+                    <div class="user-identity">
+                        <span class="id-label">IDENTITY:</span>
+                        <span id="access-username">SYSTEM_USER</span>
+                    </div>
+                    <div id="btn-vs-ai" class="stone-btn" onclick="LobbyManager.switchTab('vs-ai')">
+                        <img src="images/VS_AI.png" alt="VS AI">
+                    </div>
+                    <div id="btn-pvp" class="stone-btn" onclick="LobbyManager.switchTab('pvp')">
+                        <img src="images/PVP.png" alt="PVP">
+                    </div>
+                    <div id="btn-signout" class="stone-btn" onclick="LobbyManager.signOut()">
+                        <img src="images/signout.png" alt="SIGN OUT">
+                    </div>
+                </div>
+            </header>
+
+            <main id="lobby-main-split">
+                <!-- Vertical Divider -->
+                <div id="lobby-divider"></div>
+
+                <!-- Left Panel (AI Leaderboard) -->
+                <section id="panel-left" class="lobby-panel">
+                    <div class="panel-stone-header">
+                        <img src="images/AI_leaderboard_button.png" alt="AI LEADERBOARD">
+                    </div>
+                    <div class="panel-content hexagonal-bg">
+                        <div class="leaderboard-tabs">
+                            <div class="lb-tab active" data-diff="easy"
+                                onclick="LobbyManager.switchLeaderboard('easy')">EASY</div>
+                            <div class="lb-tab" data-diff="medium" onclick="LobbyManager.switchLeaderboard('medium')">
+                                MEDIUM</div>
+                            <div class="lb-tab" data-diff="hard" onclick="LobbyManager.switchLeaderboard('hard')">HARD
+                            </div>
+                        </div>
+                        <div id="leaderboard-list" class="scrollable">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th class="rank-col col-center">RANK</th>
+                                        <th class="col-left">USERNAME</th>
+                                        <th class="wins-col col-center">WINS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lb-body-main">
+                                    <tr>
+                                        <td colspan="3" class="col-center" style="opacity:0.3; padding: 40px;">ACCESSING
+                                            CORE DATA...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Right Panel (PVP History) -->
+                <section id="panel-right" class="lobby-panel">
+                    <div class="panel-stone-header">
+                        <img src="images/PVP_history.png" alt="PVP HISTORY">
+                    </div>
+                    <div class="panel-content hexagonal-bg">
+                        <div id="history-list" class="scrollable">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th class="col-left">OPPONENT USERNAME</th>
+                                        <th class="result-col col-center">MATCH RESULT</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pvp-body-main">
+                                    <tr>
+                                        <td colspan="2" class="col-center" style="opacity:0.3; padding: 40px;">
+                                            RETRIEVING HISTORY...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- Mode-based Overlays -->
+        <div id="game-container" style="display: none;">
+            <div id="game-header">
+                <div id="player-stats">
+                    <div class="stat-box">
+                        <span class="stat-label">HEALTH</span>
+                        <div class="stat-bar-bg">
+                            <div id="player-health-fill" class="stat-bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="turn-indicator" class="green-glow">YOUR TURN</div>
+                <div id="opponent-stats">
+                    <div class="stat-box">
+                        <span class="stat-label">OPPONENT</span>
+                        <div class="stat-bar-bg">
+                            <div id="opponent-health-fill" class="stat-bar-fill red"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="game-grid-main" class="game-grid"></div>
+            <!-- Game Message Utility -->
+            <div id="game-message" class="game-info-msg" style="display: none;"></div>
+            <!-- Combat Indicator Overlay -->
+            <div id="combat-overlay" style="display: none;">
+                <div id="combat-result">WINNER: <span id="combat-winner"></span></div>
+                <div id="combat-animation"></div>
+            </div>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over-overlay" style="display: none;">
+            <div id="game-over-content">
+                <h1 id="game-over-title">MISSION COMPLETE</h1>
+                <div id="game-over-stats"></div>
+                <button class="system-btn" onclick="MatchManager.returnToLobby()">RETURN TO LOBBY</button>
+            </div>
+        </div>
+
+        <div id="difficulty-overlay" style="display: none;"
+            onclick="LobbyManager.handleOverlayClick(event, 'difficulty-overlay')">
+            <div class="difficulty-stack">
+                <img src="images/easy_button.png" onclick="LobbyManager.startAIGame('easy')">
+                <img src="images/medium_btn.png" onclick="LobbyManager.startAIGame('medium')">
+                <img src="images/hard_button.png" onclick="LobbyManager.startAIGame('hard')">
+            </div>
+        </div>
+
+        <div id="pvp-overlay" style="display: none;" onclick="LobbyManager.handleOverlayClick(event, 'pvp-overlay')">
+            <div class="pvp-modal-content">
+                <div id="pvp-initial" class="pvp-btn-stack">
+                    <div class="pvp-stone-btn" onclick="LobbyManager.createPVPGame()">
+                        <img src="images/create_lobby.png" alt="CREATE LOBBY">
+                    </div>
+                    <div class="pvp-stone-btn" onclick="LobbyManager.joinPVPGamePrompt()">
+                        <img src="images/join_game.png" alt="JOIN GAME">
+                    </div>
+                    <div class="pvp-stone-btn" onclick="LobbyManager.hidePVPOverlay()">
+                        <img src="images/back_to_lobby.png" alt="BACK TO LOBBY">
+                    </div>
+                </div>
+                <div id="pvp-create-view" style="display: none;">
+                    <div class="code-display">CODE: <span id="generated-code">------</span></div>
+                    <div class="status-msg green-glow">WAITING FOR OPPONENT...</div>
+                    <div class="pvp-stone-btn" style="margin-top: 30px;" onclick="LobbyManager.showPVPInitial()">
+                        <img src="images/back_to_lobby.png" alt="BACK">
+                    </div>
+                </div>
+                <div id="pvp-join-view" style="display: none;">
+                    <input type="text" id="join-code-input" maxlength="6" placeholder="CODE">
+                    <div class="pvp-join-actions">
+                        <button class="system-btn" onclick="LobbyManager.submitJoinCode()">JOIN</button>
+                        <button class="system-btn" onclick="LobbyManager.showPVPInitial()">BACK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Initial Interaction Screen -->
+    <div id="initial-screen"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 4000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer;">
+        <div class="title"
+            style="color: var(--accent-color); font-size: 2.5rem; letter-spacing: 10px; text-shadow: var(--glow);">
+            SYSTEM READY</div>
+        <div id="start-btn"
+            style="margin-top: 40px; padding: 15px 40px; border: 1px solid var(--accent-color); color: var(--accent-color); font-family: var(--font-family); text-transform: uppercase; letter-spacing: 5px; background: rgba(0, 255, 102, 0.1); box-shadow: var(--glow); font-weight: bold;">
+            [ START SYSTEM ]</div>
+        <p style="color: var(--accent-color); opacity: 0.4; margin-top: 20px; font-size: 0.7rem;">ESTABLISHING
+            ENCRYPTED CONNECTION...</p>
+    </div>
+
+    <!-- Intro Movie -->
+    <div id="intro-container">
+        <video id="intro-video" playsinline>
+            <source src="assets/intro.mp4" type="video/mp4">
+        </video>
+    </div>
+
+    <!-- Tutorial Simulation Layer -->
+    <div id="tutorial-container"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 6000; padding: 20px;">
+
+        <div id="tutorial-bg-layer"
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: url('images/tutorial_bg.png') no-repeat center center; background-size: cover; filter: brightness(0.4) blur(8px); transform: scale(1.1); z-index: -1;">
+        </div>
+        <div id="tutorial-overlay-layer"
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: -1;">
+        </div>
+
+        <div id="tutorial-gameplay"
+            style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: flex-start; position: relative; padding-left: 100px; padding-right: 500px; box-sizing: border-box;">
+
+            <!-- Gameplay Content (Grid/Avatars) -->
+            <div id="gameplay-content-wrapper"
+                style="display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10;">
+
+                <div id="tutorial-avatars" style="display: none; gap: 60px; z-index: 10;">
+                    <div class="avatar-selection-box" id="avatar-f">
+                        <div class="avatar-wrap">
+                            <img src="images/female_avatar.png" class="avatar-img" alt="Female Avatar">
+                        </div>
+                        <div class="avatar-label">FEMALE_UNIT</div>
+                    </div>
+                    <div class="avatar-selection-box" id="avatar-m">
+                        <div class="avatar-wrap">
+                            <img src="images/male_avatar.png" class="avatar-img" alt="Male Avatar">
+                        </div>
+                        <div class="avatar-label">MALE_UNIT</div>
+                    </div>
+                </div>
+
+                <!-- Grid & Health Section -->
+                <div id="tutorial-grid-container"
+                    style="display: none; z-index: 5; flex-direction: row; align-items: center; gap: 40px;">
+
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <div id="tutorial-grid" class="game-grid"></div>
+                    </div>
+
+                    <!-- Tactical Vertical Health Bar (Right Side) -->
+                    <div id="tutorial-health-container"
+                        style="display: none; height: 350px; width: 40px; flex-direction: column-reverse; align-items: center; justify-content: center;">
+                        <div class="health-bar-bg vertical-health-bar">
+                            <div id="tutorial-health-fill" class="health-bar-fill"></div>
+                        </div>
+                        <div class="health-label vertical-label">SYSTEM_INTEGRITY</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overlay Indicators -->
+            <div id="tutorial-indicator-overlay"
+                style="position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; z-index: 20;">
+            </div>
+
+            <!-- Guidance Textbox -->
+            <div id="tutorial-textbox-container"
+                style="width: 450px; height: 350px; position: absolute; right: 30px; top: 50%; transform: translateY(-50%); z-index: 100;">
+                <img src="images/Highlight_boxes.png"
+                    style="width: 100%; height: 100%; position: absolute; top:0; left:0; pointer-events: none; filter: brightness(1.5) saturate(1.8) hue-rotate(285deg);">
+                <div id="tutorial-media-slot"
+                    style="position: absolute; top: -90px; left: 50%; transform: translateX(-50%); width: 120px; height: 120px; display: none; justify-content: center; align-items: center; z-index: 110;">
+                </div>
+
+                <div id="tutorial-text" class="tutorial-typewriter"
+                    style="position: absolute; top: 40px; left: 50px; right: 50px; bottom: 40px; font-family: var(--font-family); color: #000000; font-size: 1.2rem; line-height: 1.6; overflow: hidden; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold;">
+                </div>
+
+                <div id="tutorial-final-options"
+                    style="display: none; position: absolute; bottom: -80px; width: 100%; justify-content: center; gap: 30px;">
+                    <button id="tutorial-replay-yes" class="system-btn" style="font-size: 1rem;">REPLAY</button>
+                    <button id="tutorial-replay-no" class="system-btn" style="font-size: 1rem;">TERMINATE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post-Login Sequence Prompt -->
+    <div id="system-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 5000; justify-content: center; align-items: center; flex-direction: column;">
+        <div id="typewriter-container" style="display: flex; flex-direction: column; align-items: center; gap: 30px;">
+            <div id="typewriter-text" class="typewriter"></div>
+            <div id="tutorial-options" style="display: none; gap: 40px;">
+                <button id="tutorial-yes" class="system-btn">YES</button>
+                <button id="tutorial-no" class="system-btn">NO</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System SFX Elements -->
+    <audio id="snd-lobby-bg" src="sounds/lobby_horror_theme.wav" loop></audio>
+    <audio id="snd-typing" src="sounds/typing_music.wav"></audio>
+    <audio id="snd-tab" src="sounds/tab_switch.wav"></audio>
+    <audio id="snd-alert" src="sounds/notif_alert.wav"></audio>
+    <audio id="snd-tutorial-bg" src="sounds/game_bg_music.wav" loop></audio>
+    <audio id="snd-game-bg" src="sounds/game_bg_music.wav" loop></audio>
+
+    <!-- Visual Overlays -->
+    <div class="crt-overlay"></div>
+    <div class="scanline"></div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>
