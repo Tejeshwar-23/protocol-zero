@@ -39,6 +39,7 @@ const sndTab = document.getElementById('snd-tab');
 const sndAlert = document.getElementById('snd-alert');
 const sndTutorialBg = document.getElementById('snd-tutorial-bg');
 const sndLobbyBg = document.getElementById('snd-lobby-bg');
+const sndGameBg = document.getElementById('snd-game-bg');
 
 let currentUser = null;
 let currentUserId = null;
@@ -412,9 +413,19 @@ const TutorialManager = {
         }
         tutorialHealthFill.style.height = '100%';
 
-        if (sndTutorialBg.paused) {
+        // AUDIO: Stop all other themes, start Tutorial dramatic theme
+        if (sndLobbyBg) sndLobbyBg.pause();
+        if (sndGameBg) {
+            console.log("Ensuring Game (Crickets) background is paused for Tutorial");
+            sndGameBg.pause();
+            sndGameBg.currentTime = 0;
+        }
+
+        if (sndTutorialBg) {
+            console.log("Starting Tutorial Background Music:", sndTutorialBg.src);
             sndTutorialBg.volume = 0.5;
-            sndTutorialBg.play().catch(e => console.warn("Audio blocked:", e));
+            sndTutorialBg.currentTime = 0;
+            sndTutorialBg.play().catch(e => console.warn("Tutorial Audio blocked:", e));
         }
         await this.step1();
     },
