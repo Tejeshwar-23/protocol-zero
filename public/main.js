@@ -1496,7 +1496,7 @@ const MatchManager = {
         };
 
         await sync();
-        this.syncInterval = setInterval(sync, 1500);
+        this.syncInterval = setInterval(sync, 800);
     },
 
     async syncMatchState() {
