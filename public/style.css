@@ -1133,6 +1133,7 @@ th:first-child {
 
 .selectable-unit {
     filter: drop-shadow(0 0 12px #00ff66) !important;
+    pointer-events: auto !important;
 }
 
 .core-icon {

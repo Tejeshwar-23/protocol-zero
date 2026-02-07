@@ -532,14 +532,20 @@ const TutorialManager = {
 
         return new Promise(resolve => {
             const onUnitClick = async (e) => {
-                const unitImg = e.target;
+                // Robust check: get the unit image even if clicking the tile background
+                let unitImg = e.target.classList.contains('selectable-unit') ? e.target : e.target.querySelector('.selectable-unit');
+                if (!unitImg) return;
+
                 const parentTile = unitImg.parentElement;
                 const tiles = Array.from(tutorialGrid.children);
                 const index = tiles.indexOf(parentTile);
 
+                console.log("Tutorial Unit Selected:", { index, id: unitImg.getAttribute('data-id') });
+
                 units.forEach(u => {
                     u.parentElement.classList.remove('tile-valid');
                     u.onclick = null;
+                    u.parentElement.onclick = null; // Clear tile handlers too
                 });
 
                 sndAlert.currentTime = 0;
@@ -562,6 +568,7 @@ const TutorialManager = {
                         targetTile.classList.add('tile-valid');
                         hasValidTargets = true;
                         targetTile.onclick = async () => {
+                            console.log("Tutorial Target Tile Clicked:", targetIdx);
                             tiles.forEach(t => { t.classList.remove('tile-valid'); t.onclick = null; });
                             sndAlert.currentTime = 0;
                             sndAlert.play().catch(() => { });
@@ -576,11 +583,17 @@ const TutorialManager = {
                 });
 
                 if (!hasValidTargets) {
+                    console.warn("No valid targets for tutorial movement at index:", index);
                     await this.showMessage("MOVEMENT BLOCKED. RE-SELECT UNIT.", 1500);
                     this.step5().then(resolve);
                 }
             };
-            units.forEach(u => u.onclick = onUnitClick);
+
+            // Assign to both unit and parent tile for maximum reliability
+            units.forEach(u => {
+                u.onclick = onUnitClick;
+                u.parentElement.onclick = onUnitClick;
+            });
         });
     },
 
