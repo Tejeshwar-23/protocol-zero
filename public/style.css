@@ -417,7 +417,7 @@ button:hover,
 }
 
 #lobby-background {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
@@ -425,7 +425,46 @@ button:hover,
     z-index: -2;
     background: url('images/lobby_right.png') no-repeat center center;
     background-size: cover;
-    filter: brightness(0.7) contrast(1.2);
+    filter: brightness(0.6) contrast(1.1);
+}
+
+.terminal-deco {
+    position: absolute;
+    font-size: 0.65rem;
+    color: rgba(0, 191, 255, 0.4);
+    letter-spacing: 2px;
+    padding: 15px;
+    z-index: 10;
+    pointer-events: none;
+    font-family: 'Courier New', monospace;
+}
+
+.top-left {
+    top: 10px;
+    left: 10px;
+    border-top: 1px solid rgba(0, 191, 255, 0.2);
+    border-left: 1px solid rgba(0, 191, 255, 0.2);
+}
+
+.top-right {
+    top: 10px;
+    right: 10px;
+    border-top: 1px solid rgba(0, 191, 255, 0.2);
+    border-right: 1px solid rgba(0, 191, 255, 0.2);
+}
+
+.bottom-left {
+    bottom: 10px;
+    left: 10px;
+    border-bottom: 1px solid rgba(0, 191, 255, 0.2);
+    border-left: 1px solid rgba(0, 191, 255, 0.2);
+}
+
+.bottom-right {
+    bottom: 10px;
+    right: 10px;
+    border-bottom: 1px solid rgba(0, 191, 255, 0.2);
+    border-right: 1px solid rgba(0, 191, 255, 0.2);
 }
 
 #lobby-background::after {
@@ -455,22 +494,27 @@ button:hover,
 /* Top Taskbar */
 #lobby-taskbar {
     width: 100%;
-    height: 15vh;
+    height: 12vh;
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 100;
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0, 191, 255, 0.1);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.4));
 }
 
 .taskbar-wrap {
     display: flex;
     align-items: center;
     gap: 40px;
-    background: rgba(0, 0, 0, 0.7);
-    padding: 10px 40px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px 50px;
+    border-radius: 100px;
+    border: 1px solid rgba(0, 191, 255, 0.15);
+    box-shadow:
+        0 4px 15px rgba(0, 0, 0, 0.4),
+        inset 0 0 10px rgba(0, 191, 255, 0.1);
 }
 
 .user-identity {
@@ -496,14 +540,13 @@ button:hover,
 /* Stone Buttons - Standardized Logic */
 .stone-btn {
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .stone-btn img {
     width: 220px;
     height: 60px;
     object-fit: fill;
-    /* Reset default */
     display: block;
 }
 
@@ -630,17 +673,24 @@ button:hover,
 .panel-content {
     width: 100%;
     height: 70vh;
-    background: rgba(8, 8, 12, 0.92);
-    border: 1px solid rgba(0, 191, 255, 0.25);
-    border-radius: 4px;
+    background: rgba(10, 10, 15, 0.85);
+    border: 1px solid rgba(0, 191, 255, 0.2);
+    border-radius: 8px;
     position: relative;
     overflow: hidden;
     box-shadow:
-        inset 0 0 50px rgba(0, 191, 255, 0.08),
-        0 10px 30px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(10px);
+        0 0 40px rgba(0, 0, 0, 0.6),
+        inset 0 0 30px rgba(0, 191, 255, 0.05);
+    backdrop-filter: blur(15px);
     display: flex;
     flex-direction: column;
+    transition: box-shadow 0.5s ease;
+}
+
+.panel-content:hover {
+    box-shadow:
+        0 0 60px rgba(0, 191, 255, 0.1),
+        inset 0 0 40px rgba(0, 191, 255, 0.08);
 }
 
 /* Hex Pattern SVG */
@@ -692,9 +742,10 @@ button:hover,
 }
 
 .lb-tab.active {
-    color: #00bfff;
-    background: rgba(0, 191, 255, 0.15);
-    text-shadow: 0 0 10px rgba(0, 191, 255, 0.4);
+    color: #fff;
+    background: rgba(0, 191, 255, 0.25);
+    text-shadow: 0 0 15px rgba(0, 191, 255, 0.8);
+    box-shadow: inset 0 -2px 0 #00bfff;
 }
 
 .lb-tab.active::before {
@@ -800,14 +851,19 @@ th {
 }
 
 td {
-    padding: 15px 12px;
+    padding: 18px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    /* Visible lines */
     border-left: 1px solid rgba(255, 255, 255, 0.05);
-    /* Subtle vertical lines */
     font-size: 0.95rem;
     letter-spacing: 1px;
     background: transparent;
+    transition: all 0.3s;
+}
+
+tr:hover td {
+    background: rgba(0, 191, 255, 0.1);
+    text-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
+    color: #fff;
 }
 
 td:first-child,
