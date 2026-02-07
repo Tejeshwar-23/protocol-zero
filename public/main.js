@@ -438,16 +438,19 @@ const TutorialManager = {
 
     async step2() {
         tutorialAvatars.style.display = 'flex';
-        await typeWriter("SELECT YOUR AVATAR", tutorialText);
 
         return new Promise(resolve => {
             const select = async (id) => {
+                // Clear handlers immediately to prevent double-click
+                avatarF.onclick = avatarM.onclick = null;
+
                 selectedGender = id === 'f' ? 'female' : 'male';
                 sndAlert.currentTime = 0;
                 sndAlert.play().catch(() => { });
-                avatarF.onclick = avatarM.onclick = null;
+
                 const other = id === 'f' ? avatarM : avatarF;
                 other.style.opacity = '0';
+
                 setTimeout(async () => {
                     tutorialAvatars.style.display = 'none';
                     await eraseText(tutorialText);
@@ -456,11 +459,16 @@ const TutorialManager = {
                     resolve();
                 }, 600);
             };
+
+            // Set handlers BEFORE typewriter so user can skip/select early
             avatarF.onclick = () => select('f');
             avatarM.onclick = () => select('m');
             [avatarF, avatarM].forEach(a => {
                 a.onmouseenter = () => { sndTab.currentTime = 0; sndTab.play().catch(() => { }); };
             });
+
+            // Start typewriter (non-blocking for selection)
+            typeWriter("SELECT YOUR AVATAR", tutorialText);
         });
     },
 
