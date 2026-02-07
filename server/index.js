@@ -10,7 +10,8 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const DB_PATH = path.join(__dirname, 'db.sqlite');
+const DB_DIR = process.env.DATA_DIR || __dirname;
+const DB_PATH = path.join(DB_DIR, 'db.sqlite');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
 let db;
