@@ -461,8 +461,14 @@ const TutorialManager = {
             };
 
             // Set handlers BEFORE typewriter so user can skip/select early
-            avatarF.onclick = () => select('f');
-            avatarM.onclick = () => select('m');
+            console.log("Assigning selection handlers to:", avatarF, avatarM);
+
+            const handleF = () => { console.log("Female Avatar Selected"); select('f'); };
+            const handleM = () => { console.log("Male Avatar Selected"); select('m'); };
+
+            avatarF.onclick = handleF;
+            avatarM.onclick = handleM;
+
             [avatarF, avatarM].forEach(a => {
                 a.onmouseenter = () => { sndTab.currentTime = 0; sndTab.play().catch(() => { }); };
             });
