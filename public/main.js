@@ -194,7 +194,7 @@ const LobbyManager = {
                             opponentName: syncData.match.guest.username // Pass Guest Name
                         });
                     }
-                }, 2000);
+                }, 800);
             }
         } catch (e) {
             console.error("Failed to create PvP game:", e);
@@ -845,7 +845,6 @@ startBtn.onclick = () => {
 loginBtn.onclick = handleLogin;
 signupBtn.onclick = handleSignup;
 
-// Match Manager
 const MatchManager = {
     type: 'AI', // 'AI' or 'PVP'
     difficulty: 'easy',
@@ -858,6 +857,7 @@ const MatchManager = {
     opponentName: null, // Track real opponent name
     syncInterval: null,
     role: 'host', // 'host' or 'guest' for PVP
+    battleEvent: null, // { attackerId, defenderId, win }
 
     async start(type, config) {
         this.type = type;
@@ -1100,7 +1100,14 @@ const MatchManager = {
         const opponentUnit = this.units.find(u => u.x === x && u.y === y && u.owner !== unit.owner);
 
         if (opponentUnit) {
-            await this.resolveCombat(unit, opponentUnit);
+            let forcedWin = null;
+            if (this.type === 'PVP') {
+                forcedWin = Math.random() > 0.5;
+                this.battleEvent = { attackerId: unit.id, defenderId: opponentUnit.id, win: forcedWin };
+                console.log("PvP Combat Triggered: Sending immediate sync signal.");
+                await this.syncMatchState(); // Send signal immediately so opponent sees "BATTLE COMMENCE"
+            }
+            await this.resolveCombat(unit, opponentUnit, forcedWin);
         } else {
             unit.x = x;
             unit.y = y;
@@ -1129,7 +1136,7 @@ const MatchManager = {
         }
     },
 
-    async resolveCombat(attacker, defender) {
+    async resolveCombat(attacker, defender, forcedWin = null) {
         // 1. CLASH PHASE: Move attacker to defender's tile
         attacker.x = defender.x;
         attacker.y = defender.y;
@@ -1145,7 +1152,8 @@ const MatchManager = {
 
         await new Promise(r => setTimeout(r, 1000));
 
-        const win = Math.random() > 0.5;
+        // Determistic check: if forcedWin is provided, use it. otherwise roll.
+        const win = forcedWin !== null ? forcedWin : (Math.random() > 0.5);
         const winner = win ? attacker : defender;
         const loser = win ? defender : attacker;
 
@@ -1468,7 +1476,22 @@ const MatchManager = {
                         console.log("Match COMPLETE signal received via sync.");
                         this.endGame(newState.winner === currentUserId ? 'WIN' : 'LOSS');
                         if (this.syncInterval) clearInterval(this.syncInterval);
-                    } else if (this.turn === 'opponent') {
+                    }
+                    // BATTLE EVENT HANDLING
+                    else if (newState.battleEvent && newState.status === 'BATTLE' && this.turn === 'opponent') {
+                        console.log("Sync detected INBOUND BATTLE EVENT:", newState.battleEvent);
+                        const attacker = this.units.find(u => u.id === newState.battleEvent.attackerId);
+                        const defender = this.units.find(u => u.id === newState.battleEvent.defenderId);
+
+                        if (attacker && defender) {
+                            // Trigger local animation with deterministic winner
+                            await this.resolveCombat(attacker, defender, newState.battleEvent.win);
+
+                            // Clear battle state locally so it doesn't re-trigger
+                            this.battleEvent = null;
+                        }
+                    }
+                    else if (this.turn === 'opponent') {
                         if (newState.board) {
                             console.log("Sync Updating State: Turn handover detected.");
                             this.board = newState.board;
@@ -1496,7 +1519,7 @@ const MatchManager = {
         };
 
         await sync();
-        this.syncInterval = setInterval(sync, 800);
+        this.syncInterval = setInterval(sync, 600);
     },
 
     async syncMatchState() {
@@ -1510,11 +1533,12 @@ const MatchManager = {
                 board: this.board,
                 health: health,
                 turn: this.role === 'host' ? 'guest' : 'host',
-                status: this.isGameOver ? 'COMPLETE' : 'SYNCING',
-                winner: this.isGameOver ? currentUserId : null
+                status: this.isGameOver ? 'COMPLETE' : (this.battleEvent ? 'BATTLE' : 'SYNCING'),
+                winner: this.isGameOver ? currentUserId : null,
+                battleEvent: this.battleEvent
             };
 
-            console.log(`Sending State Update: Turn Handover to ${payload.turn}`);
+            console.log(`Sending State Update: Status=${payload.status}, Turn Handover to ${payload.turn}`);
 
             const res = await fetch('/api/pvp/update', {
                 method: 'POST',
@@ -1525,7 +1549,11 @@ const MatchManager = {
                 })
             });
             const data = await res.json();
-            if (!data.success) {
+
+            // Clear battleEvent after successful send
+            if (data.success) {
+                this.battleEvent = null;
+            } else {
                 console.error("Match state update failed on server:", data.error);
             }
         } catch (err) {
