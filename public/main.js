@@ -1313,13 +1313,9 @@ const MatchManager = {
 
     // AI Logic
     aiTurn() {
-        // Log for internal tracking if needed
         console.log("AI Turn Start", { turn: this.turn, type: this.type });
 
-        if (this.isGameOver || this.turn !== 'ai') {
-            console.warn("AI Turn aborted - invalid state");
-            return;
-        }
+        if (this.isGameOver || this.turn !== 'ai') return;
 
         const aiUnits = this.units.filter(u => u.owner === 'opponent');
         if (aiUnits.length === 0) {
@@ -1328,100 +1324,106 @@ const MatchManager = {
             return;
         }
 
-        const unit = aiUnits[Math.floor(Math.random() * aiUnits.length)];
+        const playerUnits = this.units.filter(u => u.owner === 'player');
         const playerCoreIdx = this.board.findIndex((b, idx) => b.type === 'core' && Math.floor(idx / 6) === 5);
         const playerCore = { x: playerCoreIdx % 6, y: 5 };
-        const playerUnits = this.units.filter(u => u.owner === 'player');
 
-        let targetX = unit.x;
-        let targetY = unit.y;
-
-        const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-        const validMoves = moves.filter(m => this.isValidMove(unit, unit.x + m[0], unit.y + m[1]));
-
-        // Helper to find closest player unit or core
-        const getClosestTarget = (fromUnit, possibleTargets) => {
-            let closest = null;
-            let minDist = Infinity;
-            possibleTargets.forEach(t => {
-                const dist = Math.abs(t.x - fromUnit.x) + Math.abs(t.y - fromUnit.y);
-                if (dist < minDist) {
-                    minDist = dist;
-                    closest = t;
-                }
-            });
-            return closest;
-        };
-
+        // 1. SMART TARGETING
+        let target;
         if (this.difficulty === 'easy') {
-            // Easy: Random valid move
-            if (validMoves.length > 0) {
-                const move = validMoves[Math.floor(Math.random() * validMoves.length)];
-                targetX += move[0];
-                targetY += move[1];
+            const randomUnit = aiUnits[Math.floor(Math.random() * aiUnits.length)];
+            const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            const valid = moves.filter(m => this.isValidMove(randomUnit, randomUnit.x + m[0], randomUnit.y + m[1]));
+            if (valid.length > 0) {
+                const m = valid[Math.floor(Math.random() * valid.length)];
+                this.moveUnit(randomUnit, randomUnit.x + m[0], randomUnit.y + m[1]);
+            } else {
+                this.turn = 'player';
+                this.updateTurnIndicator();
             }
+            return;
+        }
+
+        // MEDIUM & HARD: Determine Global Strategic Target
+        const revealedCoreIdx = this.board.findIndex((b, idx) => b.type === 'core' && b.revealed && Math.floor(idx / 6) === 5);
+        if (this.difficulty === 'hard' && revealedCoreIdx !== -1) {
+            target = { x: revealedCoreIdx % 6, y: 5 };
         } else {
-            // Medium/Hard Targeting
-            let target;
+            // Find closest player unit to ANY AI unit
+            let closestPlayerUnit = null;
+            let minDistance = Infinity;
+            aiUnits.forEach(au => {
+                playerUnits.forEach(pu => {
+                    const d = Math.abs(au.x - pu.x) + Math.abs(au.y - pu.y);
+                    if (d < minDistance) {
+                        minDistance = d;
+                        closestPlayerUnit = pu;
+                    }
+                });
+            });
+            target = closestPlayerUnit || playerCore;
+        }
 
-            if (this.difficulty === 'medium') {
-                // Medium: Target CLOSEST player unit. If none, target Core.
-                // Filter out core from unit list (just in case)
-                target = getClosestTarget(unit, playerUnits) || playerCore;
-            } else {
-                // Hard: 
-                // 1. If Core is revealedable (y=5 and we are close?) OR revealed => TARGET CORE
-                // 2. Else Target WEAKEST/CLOSEST unit (We treat closest as primary heuristic for now)
+        // 2. PICK BEST AI UNIT (Closest to target)
+        let bestUnit = null;
+        let bestDistance = Infinity;
 
-                const revealedCoreIdx = this.board.findIndex((b, idx) => b.type === 'core' && b.revealed && Math.floor(idx / 6) === 5);
-
-                if (revealedCoreIdx !== -1) {
-                    target = { x: revealedCoreIdx % 6, y: 5 };
-                } else {
-                    // Start aggressively moving DOWN if no units close? 
-                    // For now, standard "Hunt Closest" but maybe prioritize units closer to OUR core?
-                    // Let's stick to efficient hunting:
-                    target = getClosestTarget(unit, playerUnits) || playerCore;
-                }
-            }
-
-            const dx = target.x - unit.x;
-            const dy = target.y - unit.y;
-
-            // Prefer axis with larger distance
-            let preferredX = unit.x + (Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0);
-            let preferredY = unit.y + (Math.abs(dx) <= Math.abs(dy) ? Math.sign(dy) : 0);
-
-            // If preferred move is valid, take it
-            if (this.isValidMove(unit, preferredX, preferredY)) {
-                targetX = preferredX;
-                targetY = preferredY;
-            } else {
-                // Determine secondary preference (the other axis)
-                let altX = unit.x + (Math.abs(dx) <= Math.abs(dy) ? Math.sign(dx) : 0);
-                let altY = unit.y + (Math.abs(dx) > Math.abs(dy) ? Math.sign(dy) : 0);
-
-                // If dx or dy was 0, sign is 0, so we might need to explore perpendiculars
-                if (dx === 0) { altX = unit.x + 1; altY = unit.y; } // Perpendicular 1
-                // Check if alternate is valid
-                if (this.isValidMove(unit, altX, altY)) {
-                    targetX = altX;
-                    targetY = altY;
-                } else {
-                    // If blocked, just pick ANY valid move (fallback)
-                    if (validMoves.length > 0) {
-                        const move = validMoves[Math.floor(Math.random() * validMoves.length)];
-                        targetX = unit.x + move[0];
-                        targetY = unit.y + move[1];
+        // HARD MODE SPECIAL: Check for immediate attack opportunity
+        if (this.difficulty === 'hard') {
+            for (let au of aiUnits) {
+                for (let pu of playerUnits) {
+                    if (Math.abs(au.x - pu.x) + Math.abs(au.y - pu.y) === 1) {
+                        console.log("HARD AI: Immediate attack opportunity detected!");
+                        this.moveUnit(au, pu.x, pu.y);
+                        return;
                     }
                 }
             }
         }
 
-        setTimeout(() => {
-            // Force turn handover even if move is skip
-            this.moveUnit(unit, targetX, targetY);
-        }, 1000);
+        aiUnits.forEach(u => {
+            const d = Math.abs(u.x - target.x) + Math.abs(u.y - target.y);
+            if (d < bestDistance) {
+                bestDistance = d;
+                bestUnit = u;
+            }
+        });
+
+        const unit = bestUnit || aiUnits[0];
+
+        // 3. AGGRESSIVE PATHFINDING
+        const dx = target.x - unit.x;
+        const dy = target.y - unit.y;
+
+        const possibleMoves = [
+            { x: unit.x + Math.sign(dx), y: unit.y, dist: Math.abs(target.x - (unit.x + Math.sign(dx))) + Math.abs(target.y - unit.y) },
+            { x: unit.x, y: unit.y + Math.sign(dy), dist: Math.abs(target.x - unit.x) + Math.abs(target.y - (unit.y + Math.sign(dy))) }
+        ];
+
+        // Sort by distance to target
+        possibleMoves.sort((a, b) => a.dist - b.dist);
+
+        for (let move of possibleMoves) {
+            if ((move.x !== unit.x || move.y !== unit.y) && this.isValidMove(unit, move.x, move.y)) {
+                this.moveUnit(unit, move.x, move.y);
+                return;
+            }
+        }
+
+        // Fallback: Pick any move that reduces distance
+        const allMoves = [[0, 1], [0, -1], [1, 0], [-1, 0]]
+            .map(m => ({ x: unit.x + m[0], y: unit.y + m[1] }))
+            .filter(m => this.isValidMove(unit, m.x, m.y))
+            .map(m => ({ ...m, dist: Math.abs(target.x - m.x) + Math.abs(target.y - m.y) }))
+            .sort((a, b) => a.dist - b.dist);
+
+        if (allMoves.length > 0) {
+            this.moveUnit(unit, allMoves[0].x, allMoves[0].y);
+        } else {
+            // No valid moves for best unit, try a different unit
+            this.turn = 'player';
+            this.updateTurnIndicator();
+        }
     },
 
     // PvP Sync
