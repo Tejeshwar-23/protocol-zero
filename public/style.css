@@ -245,19 +245,7 @@ button:hover,
 }
 
 .avatar-wrap {
-    animation: bob 3s ease-in-out infinite;
-}
-
-@keyframes bob {
-
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-5px);
-    }
+    animation: tutorialBob 3s ease-in-out infinite;
 }
 
 .avatar-img {
@@ -275,27 +263,6 @@ button:hover,
     color: var(--purple-neon);
     text-shadow: 0 0 10px var(--purple-neon);
     font-weight: bold;
-}
-
-.game-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 60px);
-    grid-template-rows: repeat(8, 60px);
-    gap: 8px;
-    padding: 15px;
-    border: 2px solid var(--accent-color);
-    box-shadow: var(--glow);
-    background: rgba(0, 255, 102, 0.05);
-}
-
-.grid-tile {
-    width: 60px;
-    height: 60px;
-    border: 1px solid rgba(0, 255, 102, 0.2);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: rgba(0, 0, 0, 0.4);
 }
 
 .tile-valid {
@@ -354,10 +321,10 @@ button:hover,
     display: flex;
     justify-content: center;
     align-items: center;
-    animation: mediaBob 3s ease-in-out infinite;
+    animation: tutorialBob 3s ease-in-out infinite;
 }
 
-@keyframes mediaBob {
+@keyframes tutorialBob {
 
     0%,
     100% {
@@ -370,8 +337,8 @@ button:hover,
 }
 
 .media-highlight {
-    max-width: 100px;
-    max-height: 100px;
+    max-width: 110px;
+    max-height: 110px;
     filter: drop-shadow(0 0 15px rgba(0, 191, 255, 0.6));
     object-fit: contain;
 }
@@ -975,30 +942,11 @@ th:first-child {
 }
 
 /* Tutorial Media Styling (Restored) */
-.bob-media {
-    animation: bob 3s ease-in-out infinite;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
 .media-highlight {
-    max-width: 80px;
-    max-height: 80px;
+    max-width: 110px;
+    max-height: 110px;
     object-fit: contain;
     filter: drop-shadow(0 0 15px rgba(0, 191, 255, 0.4));
-}
-
-@keyframes bob {
-
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-15px);
-    }
 }
 
 /* --- Game Container Styles --- */
@@ -1102,7 +1050,8 @@ th:first-child {
 }
 
 .grid-tile:hover {
-    background: rgba(0, 191, 255, 0.1);
+    background: rgba(0, 191, 255, 0.15);
+    border-color: rgba(0, 191, 255, 0.4);
 }
 
 .grid-tile.tile-valid {

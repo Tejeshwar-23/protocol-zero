@@ -181,8 +181,8 @@ app.get('/api/leaderboard', async (req, res) => {
     }
 });
 
-// PvP Match Storage (In-Memory for Polling Sync)
-const activeMatches = {};
+// PvP Match Storage (Now Database Backed)
+// No more in-memory activeMatches object
 
 // Helper to generate 6-letter alphanumeric code
 function generateMatchCode() {
@@ -190,56 +190,109 @@ function generateMatchCode() {
 }
 
 // PvP Create
-app.post('/api/pvp/create', (req, res) => {
+app.post('/api/pvp/create', async (req, res) => {
     const { userId, username } = req.body;
     const code = generateMatchCode();
-    activeMatches[code] = {
-        host: { userId, username, ready: false },
-        guest: null,
-        state: {
-            board: null, // Initialized on sync/start
-            turn: 'host',
-            units: [], // { type, x, y, owner }
-            health: { host: 100, guest: 100 },
-            status: 'WAITING'
-        },
-        createdAt: Date.now()
+    const hostData = { userId, username, ready: false };
+    const guestData = null;
+    const gameState = {
+        board: null, // Initialized on sync/start
+        turn: 'host',
+        units: [], // { type, x, y, owner }
+        health: { host: 100, guest: 100 },
+        status: 'WAITING'
     };
-    res.json({ success: true, code });
+
+    try {
+        await db.run(
+            'INSERT INTO ACTIVE_MATCHES (match_code, host_data, guest_data, state) VALUES (?, ?, ?, ?)',
+            [code, JSON.stringify(hostData), JSON.stringify(guestData), JSON.stringify(gameState)]
+        );
+        console.log(`PvP Match Created: ${code}`);
+        res.json({ success: true, code });
+    } catch (err) {
+        console.error("PvP Create Error:", err);
+        res.status(500).json({ success: false, error: 'DATABASE ERROR' });
+    }
 });
 
 // PvP Join
-app.post('/api/pvp/join', (req, res) => {
+app.post('/api/pvp/join', async (req, res) => {
     const { code, userId, username } = req.body;
-    const match = activeMatches[code];
+    try {
+        const match = await db.get('SELECT * FROM ACTIVE_MATCHES WHERE match_code = ?', [code]);
+        if (!match) return res.status(404).json({ error: 'MATCH NOT FOUND' });
 
-    if (!match) return res.status(404).json({ error: 'MATCH NOT FOUND' });
-    if (match.guest) return res.status(400).json({ error: 'MATCH FULL' });
+        const rawGuestData = match.guest_data || match.GUEST_DATA;
+        const guestData = rawGuestData ? (typeof rawGuestData === 'string' ? JSON.parse(rawGuestData) : rawGuestData) : null;
+        if (guestData) return res.status(400).json({ error: 'MATCH FULL' });
 
-    match.guest = { userId, username, ready: false };
-    match.state.status = 'SYNCING';
-    res.json({ success: true, matchCode: code });
+        const updatedGuestData = { userId, username, ready: false };
+        const rawState = match.state || match.STATE;
+        const updatedState = typeof rawState === 'string' ? JSON.parse(rawState) : rawState;
+        updatedState.status = 'SYNCING';
+
+        await db.run(
+            'UPDATE ACTIVE_MATCHES SET guest_data = ?, state = ? WHERE match_code = ?',
+            [JSON.stringify(updatedGuestData), JSON.stringify(updatedState), code]
+        );
+        res.json({ success: true, matchCode: code });
+    } catch (err) {
+        console.error("PvP Join Error:", err);
+        res.status(500).json({ error: 'DATABASE ERROR' });
+    }
 });
 
 // PvP Sync (Polling)
-app.get('/api/pvp/sync', (req, res) => {
+app.get('/api/pvp/sync', async (req, res) => {
     const { code } = req.query;
-    const match = activeMatches[code];
+    try {
+        const matchRow = await db.get('SELECT * FROM ACTIVE_MATCHES WHERE match_code = ?', [code]);
+        if (!matchRow) return res.status(404).json({ error: 'MATCH NOT FOUND' });
 
-    if (!match) return res.status(404).json({ error: 'MATCH NOT FOUND' });
+        const hostRaw = matchRow.host_data || matchRow.HOST_DATA;
+        const guestRaw = matchRow.guest_data || matchRow.GUEST_DATA;
+        const stateRaw = matchRow.state || matchRow.STATE;
 
-    res.json({ success: true, match });
+        const match = {
+            host: typeof hostRaw === 'string' ? JSON.parse(hostRaw) : hostRaw,
+            guest: guestRaw ? (typeof guestRaw === 'string' ? JSON.parse(guestRaw) : guestRaw) : null,
+            state: typeof stateRaw === 'string' ? JSON.parse(stateRaw) : stateRaw
+        };
+        res.json({ success: true, match });
+    } catch (err) {
+        console.error("PvP Sync Error:", err);
+        res.status(500).json({ error: 'DATABASE ERROR' });
+    }
 });
 
 // PvP Update State
-app.post('/api/pvp/update', (req, res) => {
+app.post('/api/pvp/update', async (req, res) => {
     const { code, state } = req.body;
-    const match = activeMatches[code];
+    try {
+        const matchRow = await db.get('SELECT * FROM ACTIVE_MATCHES WHERE match_code = ?', [code]);
+        if (!matchRow) return res.status(404).json({ error: 'MATCH NOT FOUND' });
 
-    if (!match) return res.status(404).json({ error: 'MATCH NOT FOUND' });
+        // Robust column access mapping (handles different drivers)
+        const currentRawState = matchRow.state || matchRow.STATE;
+        if (!currentRawState) return res.status(500).json({ error: 'MATCH STATE MISSING' });
 
-    match.state = { ...match.state, ...state };
-    res.json({ success: true });
+        const currentState = typeof currentRawState === 'string' ? JSON.parse(currentRawState) : currentRawState;
+
+        // Merge state carefully
+        const newState = { ...currentState, ...state };
+
+        await db.run(
+            'UPDATE ACTIVE_MATCHES SET state = ? WHERE match_code = ?',
+            [JSON.stringify(newState), code]
+        );
+
+        console.log(`PvP State Updated for ${code}: Turn is now ${newState.turn}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error("PvP Update Error:", err);
+        res.status(500).json({ error: 'DATABASE ERROR' });
+    }
 });
 
 // Game Completion
@@ -269,12 +322,12 @@ app.post('/api/game/complete', async (req, res) => {
 });
 
 // Cleanup old matches every hour
-setInterval(() => {
-    const now = Date.now();
-    for (const code in activeMatches) {
-        if (now - activeMatches[code].createdAt > 1000 * 60 * 60) {
-            delete activeMatches[code];
-        }
+setInterval(async () => {
+    try {
+        await db.run("DELETE FROM ACTIVE_MATCHES WHERE created_at < datetime('now', '-1 hour')");
+        console.log("Cleaned up old matches from database.");
+    } catch (err) {
+        console.error("Cleanup failed:", err);
     }
 }, 1000 * 60 * 60);
 

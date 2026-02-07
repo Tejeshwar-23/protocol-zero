@@ -457,22 +457,22 @@ const TutorialManager = {
         tutorialGridContainer.style.display = 'flex';
         this.createGrid();
 
-        // Randomize Trap Placements (5 traps in top 7 rows)
+        // Randomize Trap Placements (3 traps in top 5 rows)
         this.traps = [];
-        const availableIndices = Array.from({ length: 56 }, (_, i) => i);
-        for (let i = 0; i < 5; i++) {
+        const availableIndices = Array.from({ length: 30 }, (_, i) => i);
+        for (let i = 0; i < 3; i++) {
             const randIdx = Math.floor(Math.random() * availableIndices.length);
             this.traps.push(availableIndices.splice(randIdx, 1)[0]);
         }
 
-        await this.showMessage("THIS IS AN 8 BY 8 GRID", 1500);
+        await this.showMessage("THIS IS A 6 BY 6 GRID", 1500);
         await this.showMessage("ALL GAMEPLAY OCCURS ON THIS GRID", 2000);
         await this.step4();
     },
 
     createGrid() {
         tutorialGrid.innerHTML = '';
-        for (let i = 0; i < 64; i++) {
+        for (let i = 0; i < 36; i++) {
             const tile = document.createElement('div');
             tile.className = 'grid-tile';
             tutorialGrid.appendChild(tile);
@@ -483,7 +483,7 @@ const TutorialManager = {
         const tiles = tutorialGrid.children;
         const unitImg = selectedGender === 'female' ? 'female_avatar.png' : 'male_avatar.png';
 
-        const bottomRowIndices = [56, 57, 58, 59, 60, 61, 62, 63];
+        const bottomRowIndices = [30, 31, 32, 33, 34, 35];
         const shuffled = bottomRowIndices.sort(() => 0.5 - Math.random());
         const coreIdx = shuffled[0];
         const unit1Idx = shuffled[1];
@@ -522,13 +522,13 @@ const TutorialManager = {
                 await eraseText(tutorialText);
                 await typeWriter("NOW SELECT AN ADJACENT EMPTY TILE", tutorialText);
 
-                const row = Math.floor(index / 8);
-                const col = index % 8;
+                const row = Math.floor(index / 6);
+                const col = index % 6;
                 const possibleTargets = [];
-                if (row > 0) possibleTargets.push(index - 8);
-                if (row < 7) possibleTargets.push(index + 8);
+                if (row > 0) possibleTargets.push(index - 6);
+                if (row < 5) possibleTargets.push(index + 6);
                 if (col > 0) possibleTargets.push(index - 1);
-                if (col < 7) possibleTargets.push(index + 1);
+                if (col < 5) possibleTargets.push(index + 1);
 
                 let hasValidTargets = false;
                 possibleTargets.forEach(targetIdx => {
@@ -620,7 +620,7 @@ const TutorialManager = {
     async step10() {
         await this.showMessage("FOG OF WAR HIDES THE ENTIRE GRID", 2500);
         Array.from(tutorialGrid.children).forEach((t, i) => {
-            if (i < 48 || i > 63) t.classList.add('fog-tile');
+            if (i < 24 || i > 35) t.classList.add('fog-tile');
         });
         await this.showMessage("ONLY THE AREA AROUND YOUR CORE IS CLEAR", 2500);
         await this.step11();
@@ -814,7 +814,7 @@ const MatchManager = {
     playerHealth: 100,
     opponentHealth: 100,
     turn: 'player', // 'player', 'opponent', 'ai'
-    board: [], // 64 tiles { type: 'empty'|'core'|'trap', revealed: false }
+    board: [], // 36 tiles { type: 'empty'|'core'|'trap', revealed: false }
     units: [], // { id, type, x, y, owner: 'player'|'opponent', initialX, initialY }
     pvpCode: null,
     opponentName: null, // Track real opponent name
@@ -1408,79 +1408,89 @@ const MatchManager = {
     // PvP Sync
     async startPVPSync() {
         const sync = async () => {
-            const res = await fetch(`/api/pvp/sync?code=${this.pvpCode}`);
-            const data = await res.json();
+            try {
+                const res = await fetch(`/api/pvp/sync?code=${this.pvpCode}`);
+                const data = await res.json();
 
-            if (data.success) {
-                // ALWAYS update opponent name if available, regardless of turn
-                const opponentData = (this.role === 'host') ? data.match.guest : data.match.host;
-                if (opponentData && opponentData.username) {
-                    if (this.opponentName !== opponentData.username) {
-                        console.log("Opponent Name Updated via Sync:", opponentData.username);
-                        this.opponentName = opponentData.username;
-                    }
-                }
-
-                // Sync game state only if it involves opponent turn or game end
-                // We also check for 'COMPLETE' status regardless of turn to ensure we catch end game signals
-                const newState = data.match.state;
-                if (newState.status === 'COMPLETE') {
-                    // Prevent double ending if local already ended? 
-                    // No, endGame handles idempotency via this.isGameOver
-                    this.endGame(newState.winner === currentUserId ? 'WIN' : 'LOSS');
-                    if (this.syncInterval) clearInterval(this.syncInterval);
-                } else if (this.turn === 'opponent') {
-                    // Regular State Sync
-                    if (newState.board) { // Safety Check
-                        this.board = newState.board;
-                        this.units = newState.units; // Also ensure units are synced
-
-                        // Sync Health based on role
-                        if (this.role === 'host') {
-                            this.playerHealth = newState.health.host;
-                            this.opponentHealth = newState.health.guest;
-                            this.turn = (newState.turn === 'host') ? 'player' : 'opponent';
-                        } else {
-                            this.playerHealth = newState.health.guest;
-                            this.opponentHealth = newState.health.host;
-                            this.turn = (newState.turn === 'guest') ? 'player' : 'opponent';
+                if (data.success) {
+                    const opponentData = (this.role === 'host') ? data.match.guest : data.match.host;
+                    if (opponentData && opponentData.username) {
+                        if (this.opponentName !== opponentData.username) {
+                            console.log("Opponent Name Updated via Sync:", opponentData.username);
+                            this.opponentName = opponentData.username;
                         }
+                    }
 
-                        this.updateStats();
-                        this.renderBoard();
-                        this.updateTurnIndicator();
+                    const newState = data.match.state;
+                    console.log(`Sync Polled State: Turn=${newState.turn}, Status=${newState.status}`);
+
+                    if (newState.status === 'COMPLETE') {
+                        console.log("Match COMPLETE signal received via sync.");
+                        this.endGame(newState.winner === currentUserId ? 'WIN' : 'LOSS');
+                        if (this.syncInterval) clearInterval(this.syncInterval);
+                    } else if (this.turn === 'opponent') {
+                        if (newState.board) {
+                            console.log("Sync Updating State: Turn handover detected.");
+                            this.board = newState.board;
+                            this.units = newState.units;
+
+                            if (this.role === 'host') {
+                                this.playerHealth = newState.health.host;
+                                this.opponentHealth = newState.health.guest;
+                                this.turn = (newState.turn === 'host') ? 'player' : 'opponent';
+                            } else {
+                                this.playerHealth = newState.health.guest;
+                                this.opponentHealth = newState.health.host;
+                                this.turn = (newState.turn === 'guest') ? 'player' : 'opponent';
+                            }
+
+                            this.updateStats();
+                            this.renderBoard();
+                            this.updateTurnIndicator();
+                        }
                     }
                 }
+            } catch (err) {
+                console.error("PvP Sync Error:", err);
             }
         };
 
-        // Initial fetch
         await sync();
         this.syncInterval = setInterval(sync, 1500);
     },
 
     async syncMatchState() {
-        const health = this.role === 'host' ?
-            { host: this.playerHealth, guest: this.opponentHealth } :
-            { host: this.opponentHealth, guest: this.playerHealth };
+        try {
+            const health = this.role === 'host' ?
+                { host: this.playerHealth, guest: this.opponentHealth } :
+                { host: this.opponentHealth, guest: this.playerHealth };
 
-        const payload = {
-            units: this.units,
-            board: this.board,
-            health: health,
-            turn: this.role === 'host' ? 'guest' : 'host',
-            status: this.isGameOver ? 'COMPLETE' : 'SYNCING',
-            winner: this.isGameOver ? currentUserId : null
-        };
+            const payload = {
+                units: this.units,
+                board: this.board,
+                health: health,
+                turn: this.role === 'host' ? 'guest' : 'host',
+                status: this.isGameOver ? 'COMPLETE' : 'SYNCING',
+                winner: this.isGameOver ? currentUserId : null
+            };
 
-        await fetch('/api/pvp/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                code: this.pvpCode,
-                state: payload
-            })
-        });
+            console.log(`Sending State Update: Turn Handover to ${payload.turn}`);
+
+            const res = await fetch('/api/pvp/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: this.pvpCode,
+                    state: payload
+                })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                console.error("Match state update failed on server:", data.error);
+            }
+        } catch (err) {
+            console.error("Failed to sync match state:", err);
+        }
     },
 
     async playStartAnimation() {
