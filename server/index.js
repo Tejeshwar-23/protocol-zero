@@ -1,6 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
+const { createClient } = require('@libsql/client');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const cors = require('cors');
@@ -10,22 +12,84 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const DB_DIR = process.env.DATA_DIR || __dirname;
-const DB_PATH = path.join(DB_DIR, 'db.sqlite');
-const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
+// Database Adapter to switch between Local SQLite and Turso
+class DbAdapter {
+    constructor() {
+        this.type = 'local';
+        this.db = null;
+        this.client = null;
+    }
 
-let db;
+    async init() {
+        if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
+            console.log("Initializing Turso Database...");
+            this.type = 'turso';
+            this.client = createClient({
+                url: process.env.TURSO_DATABASE_URL,
+                authToken: process.env.TURSO_AUTH_TOKEN
+            });
+        } else {
+            console.log("Initializing Local SQLite Database...");
+            this.type = 'local';
+            const DB_DIR = process.env.DATA_DIR || __dirname;
+            const DB_PATH = path.join(DB_DIR, 'db.sqlite');
+            this.db = await open({
+                filename: DB_PATH,
+                driver: sqlite3.Database
+            });
+        }
 
-async function initDb() {
-    db = await open({
-        filename: DB_PATH,
-        driver: sqlite3.Database
-    });
+        // Initialize Schema
+        const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
+        const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
 
-    const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
-    await db.exec(schema);
-    console.log('Database initialized');
+        // Split schema into statements for proper execution
+        const statements = schema.split(';').filter(stmt => stmt.trim().length > 0);
+
+        for (const stmt of statements) {
+            await this.exec(stmt);
+        }
+        console.log('Database Schema Initialized');
+    }
+
+    async get(sql, params = []) {
+        if (this.type === 'turso') {
+            const result = await this.client.execute({ sql, args: params });
+            return result.rows[0]; // Turso returns rows as array of objects (if configured) or arrays
+        } else {
+            return await this.db.get(sql, params);
+        }
+    }
+
+    async all(sql, params = []) {
+        if (this.type === 'turso') {
+            const result = await this.client.execute({ sql, args: params });
+            return result.rows;
+        } else {
+            return await this.db.all(sql, params);
+        }
+    }
+
+    async run(sql, params = []) {
+        if (this.type === 'turso') {
+            const result = await this.client.execute({ sql, args: params });
+            // Turso returns lastInsertRowid as valid ID
+            return { lastID: Number(result.lastInsertRowid), changes: result.rowsAffected };
+        } else {
+            return await this.db.run(sql, params);
+        }
+    }
+
+    async exec(sql) {
+        if (this.type === 'turso') {
+            return await this.client.execute(sql);
+        } else {
+            return await this.db.exec(sql);
+        }
+    }
 }
+
+const db = new DbAdapter();
 
 // Signup Logic
 app.post('/api/signup', async (req, res) => {
@@ -74,6 +138,7 @@ app.post('/api/login', async (req, res) => {
         }
 
         // Increment login count
+        // Note: SQLite CURRENT_TIMESTAMP is compatible with Turso (libSQL)
         await db.run('UPDATE USERS SET total_logins = total_logins + 1, last_active_at = CURRENT_TIMESTAMP WHERE user_id = ?', [user.user_id]);
 
         // Log history
@@ -231,8 +296,8 @@ app.get('/api/pvp-history', async (req, res) => {
 // Serve frontend
 app.use(express.static(path.join(__dirname, '../public')));
 
-const PORT = 3000;
-initDb().then(() => {
+const PORT = process.env.PORT || 3000;
+db.init().then(() => {
     app.listen(PORT, () => {
         console.log(`Server running at http://localhost:${PORT}`);
     });
