@@ -858,6 +858,7 @@ const MatchManager = {
     syncInterval: null,
     role: 'host', // 'host' or 'guest' for PVP
     battleEvent: null, // { attackerId, defenderId, win }
+    endReason: null, // Sync the reason for win/loss
 
     async start(type, config) {
         this.type = type;
@@ -1265,6 +1266,7 @@ const MatchManager = {
     async endGame(result, reason = '') {
         if (this.isGameOver) return;
         this.isGameOver = true;
+        this.endReason = reason;
 
         console.log("Ending Game. Result:", result, "OpponentName:", this.opponentName);
 
@@ -1474,7 +1476,7 @@ const MatchManager = {
 
                     if (newState.status === 'COMPLETE') {
                         console.log("Match COMPLETE signal received via sync.");
-                        this.endGame(newState.winner === currentUserId ? 'WIN' : 'LOSS');
+                        this.endGame(newState.winner === currentUserId ? 'WIN' : 'LOSS', newState.reason || '');
                         if (this.syncInterval) clearInterval(this.syncInterval);
                     }
                     // BATTLE EVENT HANDLING
@@ -1535,6 +1537,7 @@ const MatchManager = {
                 turn: this.role === 'host' ? 'guest' : 'host',
                 status: this.isGameOver ? 'COMPLETE' : (this.battleEvent ? 'BATTLE' : 'SYNCING'),
                 winner: this.isGameOver ? currentUserId : null,
+                reason: this.endReason,
                 battleEvent: this.battleEvent
             };
 
